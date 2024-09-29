@@ -131,4 +131,4 @@ if st.button("Proses", use_container_width=True):
         st.write(f"Jumlah proses paralel: {num_processes}")
 
 st.markdown("---")
-st.markdown("<p style='text-align: center; color: gray;'>© 2023 Irfan Z Wastu. All rights reserved.</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: gray;'>© 2024 Irfan Z Wastu. All rights reserved.</p>", unsafe_allow_html=True)
