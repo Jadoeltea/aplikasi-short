@@ -1,19 +1,17 @@
 import streamlit as st
 import random
 import time
-import threading
+import multiprocessing as mp
 
-def bubble_sort(arr, status_placeholder):
+def bubble_sort(arr):
     n = len(arr)
     for i in range(n):
         for j in range(0, n-i-1):
             if arr[j] > arr[j+1]:
                 arr[j], arr[j+1] = arr[j+1], arr[j]
-        if i % 100 == 0:
-            status_placeholder.text(f"Memproses... {i}/{n}")
     return arr
 
-def selection_sort(arr, status_placeholder):
+def selection_sort(arr):
     n = len(arr)
     for i in range(n):
         min_idx = i
@@ -21,50 +19,70 @@ def selection_sort(arr, status_placeholder):
             if arr[j] < arr[min_idx]:
                 min_idx = j
         arr[i], arr[min_idx] = arr[min_idx], arr[i]
-        if i % 100 == 0:
-            status_placeholder.text(f"Memproses... {i}/{n}")
     return arr
 
-def quick_sort(arr, status_placeholder):
-    def partition(arr, low, high):
-        i = low - 1
-        pivot = arr[high]
-        for j in range(low, high):
-            if arr[j] <= pivot:
-                i += 1
-                arr[i], arr[j] = arr[j], arr[i]
-        arr[i + 1], arr[high] = arr[high], arr[i + 1]
-        return i + 1
+def quick_sort(arr):
+    if len(arr) <= 1:
+        return arr
+    else:
+        pivot = arr[len(arr) // 2]
+        left = [x for x in arr if x < pivot]
+        middle = [x for x in arr if x == pivot]
+        right = [x for x in arr if x > pivot]
+        return quick_sort(left) + middle + quick_sort(right)
 
-    def quick_sort_helper(arr, low, high):
-        if low < high:
-            pi = partition(arr, low, high)
-            quick_sort_helper(arr, low, pi - 1)
-            quick_sort_helper(arr, pi + 1, high)
-            status_placeholder.text(f"Memproses... {high}/{len(arr)}")
+def parallel_sort(arr, method, num_processes):
+    chunk_size = len(arr) // num_processes
+    chunks = [arr[i:i + chunk_size] for i in range(0, len(arr), chunk_size)]
+    
+    with mp.Pool(processes=num_processes) as pool:
+        sorted_chunks = pool.map(method, chunks)
+    
+    # Menggabungkan hasil pengurutan
+    if method == quick_sort:
+        return quick_sort([item for chunk in sorted_chunks for item in chunk])
+    else:
+        result = []
+        for chunk in sorted_chunks:
+            result = merge(result, chunk)
+        return result
 
-    quick_sort_helper(arr, 0, len(arr) - 1)
-    return arr
+def merge(left, right):
+    result = []
+    i, j = 0, 0
+    while i < len(left) and j < len(right):
+        if left[i] <= right[j]:
+            result.append(left[i])
+            i += 1
+        else:
+            result.append(right[j])
+            j += 1
+    result.extend(left[i:])
+    result.extend(right[j:])
+    return result
 
 st.set_page_config(page_title="APLIKASI SORTING", layout="wide")
 
 st.title("APLIKASI SORTING")
 
 with st.expander("Informasi Tambahan", expanded=True):
-    st.write("Pilih jumlah data dan metode pengurutan di bawah ini.")
+    st.write("Pilih jumlah data, metode pengurutan, dan jumlah proses paralel di bawah ini.")
     st.write("Setelah menekan tombol 'Proses', Anda akan melihat data sebelum dan sesudah diurutkan.")
 
 with st.container():
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
-        jumlah_data = st.number_input("Masukkan jumlah data:", min_value=1, max_value=1000000, value=10)
+        jumlah_data = st.number_input("Masukkan jumlah data:", min_value=1, max_value=1000000, value=10000)
     
     with col2:
         metode_sort = st.radio("Pilih metode pengurutan:", ("Bubble Sort", "Selection Sort", "Quick Sort"))
+    
+    with col3:
+        num_processes = st.number_input("Jumlah proses komputasi:", min_value=1, max_value=mp.cpu_count(), value=mp.cpu_count())
 
 if jumlah_data > 10000:
-    st.warning("Peringatan: Memproses data dalam jumlah besar dapat memakan waktu lama dan mungkin membuat aplikasi tidak responsif.")
+    st.warning("Peringatan: Memproses data dalam jumlah besar dapat memakan waktu lama.")
 
 if metode_sort in ["Bubble Sort", "Selection Sort"] and jumlah_data > 10000:
     st.warning(f"Peringatan: {metode_sort} tidak efisien untuk data yang sangat besar. Pertimbangkan untuk menggunakan Quick Sort.")
@@ -77,14 +95,14 @@ if st.button("Proses", use_container_width=True):
     
     waktu_awal = time.time()
     
-    status_placeholder.text("Memulai proses pengurutan...")
+    status_placeholder.text("Memulai proses pengurutan ...")
     
     if metode_sort == "Bubble Sort":
-        hasil = bubble_sort(data.copy(), status_placeholder)
+        hasil = parallel_sort(data.copy(), bubble_sort, num_processes)
     elif metode_sort == "Selection Sort":
-        hasil = selection_sort(data.copy(), status_placeholder)
+        hasil = parallel_sort(data.copy(), selection_sort, num_processes)
     else:
-        hasil = quick_sort(data.copy(), status_placeholder)
+        hasil = parallel_sort(data.copy(), quick_sort, num_processes)
     
     waktu_akhir = time.time()
     waktu_proses = waktu_akhir - waktu_awal
@@ -94,9 +112,9 @@ if st.button("Proses", use_container_width=True):
     with result_placeholder.container():
         menit, detik = divmod(waktu_proses, 60)
         if menit > 0:
-            st.success(f"Proses pengurutan selesai dalam waktu {int(menit)} menit {detik:.2f} detik")
+            st.success(f"Proses pengurutan paralel selesai dalam waktu {int(menit)} menit {detik:.2f} detik")
         else:
-            st.success(f"Proses pengurutan selesai dalam waktu {detik:.2f} detik")
+            st.success(f"Proses pengurutan paralel selesai dalam waktu {detik:.2f} detik")
         
         col_sebelum, col_sesudah = st.columns(2)
         
@@ -110,7 +128,7 @@ if st.button("Proses", use_container_width=True):
 
         st.write(f"Metode pengurutan yang digunakan: {metode_sort}")
         st.write(f"Jumlah data yang diurutkan: {jumlah_data}")
+        st.write(f"Jumlah proses paralel: {num_processes}")
 
-# Menambahkan copyright di bagian bawah
 st.markdown("---")
-st.markdown("<p style='text-align: center; color: gray;'>© 2024 Irfan Z Wastu. All rights reserved.</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: gray;'>© 2023 Irfan Z Wastu. All rights reserved.</p>", unsafe_allow_html=True)
